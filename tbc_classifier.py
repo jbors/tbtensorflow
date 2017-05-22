@@ -12,7 +12,7 @@ def next_batch():
     input_tensors = []
     for filename in os.listdir(DIR):
         if filename.endswith(".png"):
-            print("deconding file:" + filename)
+            print("decoding file:" + filename)
             image = tf.image.decode_png(tf.read_file(DIR + filename))
 
             resized = tf.image.resize_image_with_crop_or_pad(image, 128, 128)
