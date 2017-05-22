@@ -126,6 +126,7 @@ tf.global_variables_initializer().run()
 sess.run(tf.global_variables_initializer())
 batch = np.array(next_batch())
 results = np.array(results())
+print("Starting training. Have some patience please.")
 for i in range(1500):
     if i%20 == 18:
         train_accuracy = accuracy.eval(feed_dict={
