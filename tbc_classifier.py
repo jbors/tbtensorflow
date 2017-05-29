@@ -3,41 +3,43 @@ import os
 import csv
 import numpy as np
 
-DIR = "./data/MontgomerySet/CXR_png/"
-RESULTS_DIR = "./data/MontgomerySet/ClinicalReadings/"
-TEST_DIR = ""
+# TRAIN_DIR = "./data/MontgomerySet/CXR_png/"
+# TEST_DIR = "./data/ChinaSet_AllFiles/CXR_png/"
 
+TRAIN_DIR = "./data/ChinaSet_AllFiles/CXR_png/"
+TEST_DIR = "./data/MontgomerySet/CXR_png/"
 
-def next_batch():
+# Read images in specified dir
+def next_batch(directory):
     input_tensors = []
-    for filename in os.listdir(DIR):
+    for filename in os.listdir(directory):
         if filename.endswith(".png"):
             print("decoding file:" + filename)
-            image = tf.image.decode_png(tf.read_file(DIR + filename))
+            image = tf.image.decode_png(tf.read_file(directory + filename))
 
             resized = tf.image.resize_image_with_crop_or_pad(image, 128, 128)
-
             array_vals = resized.eval()
-            input_tensors.append(array_vals)
+            if array_vals.shape != (128, 128, 1):
+                print("Errouneous file " + filename)
 
+            #should only be appended if correct. But what does that do to the result set?
+            #Should just make one set really
+            input_tensors.append(array_vals)
     return input_tensors
 
 
-def results():
+def test_results(directory):
     expected_results = []
-    csv_file = open(RESULTS_DIR + 'results.csv', "r")
-    reader = csv.reader(csv_file, delimiter=',')
-    for row in reader:
-
-        if row[3] == '0':
+    for filename in os.listdir(directory):
+        if filename.endswith("_0.png"):
             expected_results.append([])
             expected_results[len(expected_results) - 1].append(1)
             expected_results[len(expected_results) - 1].append(0)
-        elif row[3] == '1':
+        elif filename.endswith("_1.png"):
             expected_results.append([])
             expected_results[len(expected_results) - 1].append(0)
             expected_results[len(expected_results) - 1].append(1)
-    print("Expected: " + str(len(expected_results)))
+    print("Testlength: " + str(len(expected_results)))
     return expected_results
 
 
@@ -77,7 +79,6 @@ x_image = tf.reshape(x, [-1,128,128,1])
 h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
 
 # Pool the outputs in 2x2 blocks. This should make it a 64x64 image.
-# TODO: Not sure why this is being applied AFTER the convolution layer...
 h_pool1 = max_pool_2x2(h_conv1)
 
 
@@ -124,14 +125,29 @@ tf.global_variables_initializer().run()
 
 # train
 sess.run(tf.global_variables_initializer())
-batch = np.array(next_batch())
-results = np.array(results())
+batch = next_batch(TRAIN_DIR)
+print("Training_batch " + str(len(batch)))
+test_batch = next_batch(TEST_DIR)
+print("Test_batch " + str(len(test_batch)))
+results = test_results(TRAIN_DIR)
+print("Training_results " + str(len(results)))
+testresults = test_results(TEST_DIR)
+print("Test_results " + str(len(testresults)))
+i = 0
+for image in test_batch:
+    if image.shape != (128, 128, 1):
+        print("found errounous result at position " + str(i))
+    i = i + 1
+
 print("Starting training. Have some patience please.")
-for i in range(1500):
+for i in range(3000):
     if i%20 == 18:
         train_accuracy = accuracy.eval(feed_dict={
             x:batch, y_:results, keep_prob: 1.0})
         print("step %d, training accuracy %g"%(i, train_accuracy))
+        test_accuracy = accuracy.eval(feed_dict={
+            x:test_batch, y_:testresults, keep_prob: 1.0})
+        print("step %d, test accuracy %g" % (i, test_accuracy))
     train_step.run(feed_dict={x: batch, y_: results, keep_prob: 1.0})
 
 print("Done training")
