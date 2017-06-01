@@ -1,13 +1,18 @@
 import tensorflow as tf
 import os
-import csv
-import numpy as np
+import time
+from random import randint
 
 # TRAIN_DIR = "./data/MontgomerySet/CXR_png/"
 # TEST_DIR = "./data/ChinaSet_AllFiles/CXR_png/"
 
 TRAIN_DIR = "./data/ChinaSet_AllFiles/CXR_png/"
 TEST_DIR = "./data/MontgomerySet/CXR_png/"
+
+# Dir with only a few images, to test general workings before training on full set
+#TRAIN_DIR = "./data/ChinaSet_AllFiles/CXR_png/tmptest/"
+#TEST_DIR = "./data/MontgomerySet/CXR_png/tmptest/"
+
 
 # Read images in specified dir
 def next_batch(directory):
@@ -28,6 +33,7 @@ def next_batch(directory):
     return input_tensors
 
 
+# get the results for the files
 def test_results(directory):
     expected_results = []
     for filename in os.listdir(directory):
@@ -39,9 +45,29 @@ def test_results(directory):
             expected_results.append([])
             expected_results[len(expected_results) - 1].append(0)
             expected_results[len(expected_results) - 1].append(1)
-    print("Testlength: " + str(len(expected_results)))
     return expected_results
 
+# get a complete feed_dict for the specified directory
+def feed_dict_examples(directory, size, probablity, x, y_, keep_prob):
+    input_tensors = next_batch(directory)
+    results = test_results(directory)
+
+
+    if len(input_tensors) != len(results):
+        print("input and result length do not match")
+
+    resultsize = len(input_tensors)
+    print("retrieved " + str(resultsize) + " images")
+    tensor_set = []
+    result_set = []
+
+    for i in range(size):
+        rand = randint(0, resultsize - 1)
+        tensor_set.append(input_tensors[rand])
+        result_set.append(results[rand])
+
+    feed_dict = {x: tensor_set, y_: result_set, keep_prob: probablity}
+    return feed_dict
 
 # Start by defining some functions to get randomly initialized variables
 def weight_variable(shape):
@@ -125,30 +151,21 @@ tf.global_variables_initializer().run()
 
 # train
 sess.run(tf.global_variables_initializer())
-batch = next_batch(TRAIN_DIR)
-print("Training_batch " + str(len(batch)))
-test_batch = next_batch(TEST_DIR)
-print("Test_batch " + str(len(test_batch)))
-results = test_results(TRAIN_DIR)
-print("Training_results " + str(len(results)))
-testresults = test_results(TEST_DIR)
-print("Test_results " + str(len(testresults)))
-i = 0
-for image in test_batch:
-    if image.shape != (128, 128, 1):
-        print("found errounous result at position " + str(i))
-    i = i + 1
+
+# ideally it should do a new random training set every time to prevent the network from learning order.
+# shouldn't read files into tensors again every time though
+train_dict = feed_dict_examples(TRAIN_DIR, 600, 1.0, x, y_, keep_prob)
+test_dict = feed_dict_examples(TEST_DIR, 100, 1.0, x, y_, keep_prob)
 
 print("Starting training. Have some patience please.")
 for i in range(3000):
     if i%20 == 18:
-        train_accuracy = accuracy.eval(feed_dict={
-            x:batch, y_:results, keep_prob: 1.0})
+        train_accuracy = accuracy.eval(feed_dict=train_dict)
+        print("Time: " + time.strftime('%X %x %Z'))
         print("step %d, training accuracy %g"%(i, train_accuracy))
-        test_accuracy = accuracy.eval(feed_dict={
-            x:test_batch, y_:testresults, keep_prob: 1.0})
+        test_accuracy = accuracy.eval(feed_dict=test_dict)
         print("step %d, test accuracy %g" % (i, test_accuracy))
-    train_step.run(feed_dict={x: batch, y_: results, keep_prob: 1.0})
+    train_step.run(feed_dict=train_dict)
 
 print("Done training")
 
